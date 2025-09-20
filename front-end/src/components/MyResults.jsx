@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { Link as RouterLink, useNavigate, useLocation } from "react-router-dom";
 import { Link as LinkIcon, Home, Menu } from "lucide-react";
 import TopRightMenu from "./TopRightMenu"; // 이미 있다면 그대로 사용
 
@@ -15,6 +15,7 @@ function StatusBadge({ value }) {
 
 export default function MyResults() {
     const navigate = useNavigate();
+    const location = useLocation(); // ✅ 모달 라우트용 배경 전달
 
     // TODO: 이후 백엔드 연동 시 API 호출로 대체
     const allData = useMemo(
@@ -39,8 +40,8 @@ export default function MyResults() {
     }, [allData, page]);
 
     const openDetail = (row) => {
-        // 개별 검사지 상세 페이지(임시 라우트)로 이동
-        navigate(`/results/${row.id}`);
+        // ✅ 배경 location 함께 전달 → /results/:id 를 모달로 띄우고 뒤에 MyResults 유지
+        navigate(`/results/${row.id}`, { state: { background: location } });
     };
 
     return (
