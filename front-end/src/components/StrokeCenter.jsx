@@ -135,14 +135,6 @@ export default function StrokeCenter() {
                 </p>
             </div>
 
-            {/* 현재 위치 */}
-            {location?.address && (
-                <div className="mt-8 text-center flex items-center justify-center text-gray-700 gap-2">
-                    <MapPinHouse className="w-7 h-7 text-black" />
-                    <span className="underline text-black text-2xl">{location.address}</span>
-                </div>
-            )}
-
             {/* 병원 리스트 (UI 틀 동일, 데이터만 nearest6 사용) */}
             <div className="mt-14 ml-24 mr-24 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-16 gap-y-8">
                 {centers.map((center, index) => (
