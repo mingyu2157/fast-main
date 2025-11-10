@@ -52,16 +52,19 @@ def extract_features_from_two_images(start_bytes: bytes, end_bytes: bytes) -> Di
     e_xy = _extract_xy21(end)
 
     def hand_feats(hand: str):
-        # landmark 4(엄지끝) ↔ 20(새끼끝)
-        def slope(hxy):
-            if hxy is None: return 0.0
-            return float(_slope_xy(hxy[4], hxy[20]))
-        s = slope(s_xy.get(hand))
-        e = slope(e_xy.get(hand))
-        diff = abs(e - s)
-        # 첫 5개 랜드마크 y 변화량
+    # landmark 4(엄지끝) ↔ 20(새끼끝)
+        def ang(hxy):
+            if hxy is None:
+                return 0.0
+            return float(_angle_xy(hxy[4], hxy[20]))
+
+        s = ang(s_xy.get(hand))
+        e = ang(e_xy.get(hand))
+        diff = _angle_diff(e, s)  # 라디안 기준의 최소 각도 변화량
+
+        # 첫 5개 랜드마크 y 변화량 (원래대로 두되, 필요시 정규화 가능)
         def y_deltas():
-            TIP_IDX = [4, 8, 12, 16, 20]  # thumb, index, middle, ring, pinky (tip)
+            TIP_IDX = [4, 8, 12, 16, 20]
             out = []
             s_hand = s_xy.get(hand)
             e_hand = e_xy.get(hand)
@@ -69,10 +72,10 @@ def extract_features_from_two_images(start_bytes: bytes, end_bytes: bytes) -> Di
                 if s_hand is None or e_hand is None:
                     out.append(0.0)
                 else:
-                    # 이미지 좌표계에서 y는 아래로 증가 → 아래로 내려가면 +값
                     out.append(float(e_hand[idx][1] - s_hand[idx][1]))
             return out
-        return s, e, diff, y_deltas()
+
+    return s, e, diff, y_deltas()
 
     ls, le, ld, ly = hand_feats("Left")
     rs, re, rd, ry = hand_feats("Right")

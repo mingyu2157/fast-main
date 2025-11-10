@@ -8,3 +8,10 @@ export async function postArmPredict(startBlob, endBlob, { useMeasure = false } 
   const { data } = await http.post(path, fd, { headers: { "Content-Type": "multipart/form-data" } });
   return data;
 }
+
+export async function postArmPredictLandmarks(payload) {
+  const { data } = await http.post("/api/v1/arm/predict_landmarks", payload, {
+    headers: { "Content-Type": "application/json" },
+  });
+  return data;
+}

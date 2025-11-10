@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { postArmPredict } from "@/api/arm";
+import { postArmPredictLandmarks } from "@/api/arm";
+//import { postArmPredict } from "@/api/arm";
 import { useNavigate } from "react-router-dom";
 
 export default function ArmMeasure() {
@@ -26,7 +27,13 @@ export default function ArmMeasure() {
   const guideStartRef = useRef(null);
   const startedRef = useRef(false);
   const cooldownRef = useRef(0);
+  const latestPackRef = useRef(null);
+  const latestTsRef = useRef(0);
 
+  const wantStartLmRef = useRef(false);
+  const wantEndLmRef   = useRef(false);
+  const startPackRef   = useRef(null);
+  const endPackRef     = useRef(null);
   const navigate = useNavigate();
 
   const [status, setStatus] = useState("idle");
@@ -49,7 +56,11 @@ export default function ArmMeasure() {
 
   const pushLog = (m) =>
     setLog((prev) => {
-      const next = [...prev, `[${new Date().toLocaleTimeString()}] ${m}`];
+      const safe =
+        typeof m === "string" ? m :
+        // 객체 찍을 때 [object Object] 방지
+        JSON.stringify(m, null, 2);
+      const next = [...prev, `[${new Date().toLocaleTimeString()}] ${safe}`];
       return next.length > 300 ? next.slice(-300) : next; // 최근 300줄만 유지
     });
   // =========================
@@ -84,6 +95,15 @@ export default function ArmMeasure() {
       c.toBlob((b) => (b ? resolve(b) : reject(new Error("캡처 실패"))), "image/png");
     });
 
+     // ⬇️ MediaPipe 결과를 JSON으로 패킹 (정규화 0~1)
+    const packHands = (res) => {
+    const hands = res?.multiHandLandmarks || [];
+    const hd    = res?.multiHandedness   || [];
+    return hands.map((pts, i) => ({
+      label: hd[i]?.label || "Unknown",      // "Left"/"Right"
+      points: pts.map(p => ({ x: p.x, y: p.y })) // 21개
+    }));
+  };
   const run = async () => {
     if (startedRef.current) return;
     startedRef.current = true;
@@ -104,6 +124,12 @@ export default function ArmMeasure() {
       b025UrlRef.current = URL.createObjectURL(b025);
       setImg025(b025UrlRef.current);
       pushLog("2.5s 캡처 완료");
+      const now1 = performance.now();
+      const age1 = now1 - (latestTsRef.current || 0);
+      if (!latestPackRef.current || age1 > 1500) {
+        throw new Error("start landmarks not available (stale)");
+      }
+      startPackRef.current = latestPackRef.current;
 
       pushLog("10.5초(추가 8초) 대기…");
       await new Promise((r) => setTimeout(r, 8000));
@@ -111,9 +137,24 @@ export default function ArmMeasure() {
       b105UrlRef.current = URL.createObjectURL(b105);
       setImg105(b105UrlRef.current);
       pushLog("10.5s 캡처 완료");
+      const now2 = performance.now();
+      const age2 = now2 - (latestTsRef.current || 0);
+      if (!latestPackRef.current || age2 > 1500) {
+        throw new Error("end landmarks not available (stale)");
+      }
+      endPackRef.current = latestPackRef.current;
 
       pushLog("서버 전송…");
-      const data = await postArmPredict(b025, b105);
+       const vw = videoRef.current?.videoWidth  || 1280;
+      const vh = videoRef.current?.videoHeight || 720;
+      const payload = {
+        frame_width: vw,
+        frame_height: vh,
+        wasMirrored: true, // 프리뷰/MP selfieMode 적용 → 서버에서 x좌표 원복
+        start: startPackRef.current,
+        end:   endPackRef.current,
+      };
+      const data = await postArmPredictLandmarks(payload);
       setResp(data);
       pushLog("서버 응답 수신");
 
@@ -133,6 +174,12 @@ export default function ArmMeasure() {
 
   // Hands 결과 처리: 고정 크기/좌표로 판정
   const onResults = (results) => {
+   // 항상 최신 랜드마크 저장
+  const pack = packHands(results);
+  if (pack && pack.length > 0) {
+    latestPackRef.current = pack;
+    latestTsRef.current = performance.now();
+  }
     const video = videoRef.current;
     const leftBox = leftBoxRef.current;
     const rightBox = rightBoxRef.current;

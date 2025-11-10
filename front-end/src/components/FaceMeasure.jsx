@@ -237,7 +237,8 @@ export default function FaceMeasure() {
           // --- 고정 좌표 슬롯 & 글자 크기/줄간격 ---
           ctx.save();
 
-          const FONT_PX = 30;
+          const FONT_PX = 80;
+          const FONT2_PX = 50;
           const LINE_H  = Math.round(FONT_PX * 1.28);
           ctx.fillStyle = "#ffffffff";
           ctx.font = `${FONT_PX}px sans-serif`;
@@ -267,7 +268,7 @@ export default function FaceMeasure() {
             ctx.fillStyle = "lime";
             ctx.font = `${FONT_PX}px sans-serif`;
             ctx.textAlign = slots.ok.align;
-            const okMsg = "좋아요! 그대로 유지하면서 웃는 얼굴을 유지하세요! 5초후에 자동으로 검사돼요.";
+            const okMsg = "그대로 웃는 얼굴을 유지하세요!";
             const okLines = wrapLines(ctx, okMsg, slots.ok.maxW);
             okLines.forEach((ln, i) => {
               ctx.fillText(ln, slots.ok.x, slots.ok.y + i * LINE_H);
@@ -431,3 +432,4 @@ export default function FaceMeasure() {
     </div>
   );
 }
+

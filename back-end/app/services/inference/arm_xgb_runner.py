@@ -43,6 +43,6 @@ def predict_proba_and_label(features: dict[str, float]) -> tuple[float, str]:
     model = _load_model()
     X = np.array([[float(features[k]) for k in FEATURE_COLS]], dtype=float)
     proba1 = float(model.predict_proba(X)[0, 1]) if hasattr(model, "predict_proba") else float(model.predict(X)[0])
-    thr = float(getattr(settings, "ARM_THRESHOLD", None) or threshold("arm") or 0.713)
+    thr = float(getattr(settings, "ARM_THRESHOLD", None) or threshold("arm") or 0.718)
     label = "detected" if proba1 >= thr else "normal"
     return proba1, label

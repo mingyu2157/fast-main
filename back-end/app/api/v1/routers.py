@@ -1,6 +1,6 @@
 # back-end/app/api/v1/routers.py
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, measure, face, arm_predict, speech, results
+from app.api.v1.endpoints import auth, measure, face, arm_predict, speech, results, arm_landmark
 
 
 api_router = APIRouter()
@@ -22,4 +22,5 @@ api_router.include_router(speech.router, prefix="/speech", tags=["speech"])  # ì
 # /api/v1/results/summary
 api_router.include_router(results.router, prefix="/results", tags=["results"])
 
+api_router.include_router(arm_landmark.router, prefix="/arm", tags=["arm_landmark"])
 

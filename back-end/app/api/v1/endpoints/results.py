@@ -49,7 +49,7 @@ def _arm_to_label(row: Arm) -> str:
         return "경고" if int(row.label) == 1 else "정상"
     except Exception:
         # 라벨이 문자열이거나 None인 경우
-        if str(getattr(row, "label", "")).strip() in ("1", "abnormal", "경고"):
+        if str(getattr(row, "label", "")).strip() in ("1", "detected", "경고"):
             return "경고"
         if getattr(row, "label", None) is None:
             return "미실시"

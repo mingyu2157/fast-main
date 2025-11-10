@@ -30,8 +30,6 @@ async def predict_arm_v1(
     feats = extract_features_from_two_images(sb, eb) or {}
     proba, label = predict_proba_and_label(feats)
 
-    # 3) 라벨 정규화
-
     # 4) DB 저장 (정규화 라벨로 저장 권장)
     row = create_arm(
         db,
