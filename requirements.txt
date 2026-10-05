@@ -2,7 +2,7 @@ fastapi
 uvicorn[standard]
 sqlalchemy
 pymysql
-cryptography
+cryptography==46.0.3
 passlib[bcrypt]
 pydantic==1.10.14
 email-validator
@@ -29,5 +29,5 @@ gdown
 pydub
 ffmpeg-python
 xgboost==3.0.2
-
-
+numba==0.62.1
+setuptools==80.9.0

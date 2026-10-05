@@ -18,3 +18,7 @@ Thumbs.db
 
 back-end/app/assets/models/
 back-end/app/static/
+# Claude Code (로컬 설정)
+.claude/settings.local.json
+torgo_data/
+data.csv
