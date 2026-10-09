@@ -1,41 +1,37 @@
+// TopRightMenu.jsx
 import { useState, useRef, useEffect } from "react";
 import { Menu, House } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom"; // ✅ 추가
 
 function TopRightMenu({
-    onLoginClick,
-    showLoginButton = true,
-    showHomeButton = true,
-    isLoggedIn,
-    setIsLoggedIn,
-}) {
+                          onLoginClick,
+                          showLoginButton = true,
+                          showHomeButton = true,
+                          isLoggedIn,
+                          setIsLoggedIn,
+                      }) {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef(null);
     const navigate = useNavigate();
+    const { pathname } = useLocation(); // ✅ 현재 경로
+    const isTestPage = pathname.startsWith("/test"); // ✅ 캐러셀 경로
+    const showHome = showHomeButton && !isTestPage;  // ✅ 최종 표시 여부
 
-    // 외부 클릭 시 메뉴 닫기
     useEffect(() => {
         const handleClickOutside = (e) => {
             if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
                 setIsOpen(false);
             }
         };
-
-        if (isOpen) {
-            document.addEventListener("mousedown", handleClickOutside);
-        } else {
-            document.removeEventListener("mousedown", handleClickOutside);
-        }
-
-        return () => {
-            document.removeEventListener("mousedown", handleClickOutside);
-        };
+        if (isOpen) document.addEventListener("mousedown", handleClickOutside);
+        else document.removeEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [isOpen]);
 
     return (
         <div className="absolute top-5 right-12 z-50 flex items-center gap-6">
-            {/* ✅ 홈 아이콘 (조건부 표시) */}
-            {showHomeButton && (
+            {/* 홈 아이콘 */}
+            {showHome && (
                 <House
                     onClick={() => navigate("/")}
                     className="w-7 h-7 text-gray-800 cursor-pointer hover:text-blue-600 transition-all"
@@ -48,19 +44,13 @@ function TopRightMenu({
                 <button
                     className="text-2xl font-medium px-0 py-4 rounded-md hover:text-blue-600 hover:font-bold transition-all"
                     aria-label={isLoggedIn ? "로그아웃" : "로그인"}
-                    onClick={() => {
-                        if (isLoggedIn) {
-                            setIsLoggedIn(false);
-                        } else {
-                            onLoginClick();
-                        }
-                    }}
+                    onClick={() => (isLoggedIn ? setIsLoggedIn(false) : onLoginClick())}
                 >
                     {isLoggedIn ? "로그아웃" : "로그인"}
                 </button>
             )}
 
-            {/* 메뉴 아이콘과 드롭다운 */}
+            {/* 메뉴 */}
             <div className="relative" ref={dropdownRef}>
                 <Menu
                     onClick={() => setIsOpen(!isOpen)}
@@ -69,18 +59,17 @@ function TopRightMenu({
                     role="button"
                 />
                 {isOpen && (
-                    <div className="absolute top-1/2 right-full transform -translate-y-1/2 mr-4
-                          bg-gray-100 shadow-lg rounded-xl px-6 py-4 flex items-center gap-6 w-auto max-w-max">
+                    <div className="absolute top-1/2 right-full -translate-y-1/2 mr-4
+                          bg-gray-100 shadow-lg rounded-xl px-6 py-4 flex items-center gap-6">
                         <button
+                            onClick={() => { setIsOpen(false); navigate("/results"); }}
                             className="text-2xl hover:text-blue-600 hover:font-bold transition-all whitespace-nowrap"
-                            aria-label="My 검사결과 바로가기"
                         >
                             My 검사결과
                         </button>
                         <button
-                            onClick={() => navigate("/stroke-center")}
+                            onClick={() => { setIsOpen(false); navigate("/stroke-center"); }}
                             className="text-2xl hover:text-blue-600 hover:font-bold transition-all whitespace-nowrap"
-                            aria-label="뇌졸중 센터 찾기"
                         >
                             뇌졸중 센터
                         </button>

@@ -6,8 +6,19 @@ python-jose
 passlib[bcrypt]
 pydantic
 email-validator
-python-multipart        # OAuth2 form-data 지원
-python-dotenv           # .env 파일 로딩
-alembic                 # (선택) DB 마이그레이션 관리
-pytest                  # 테스트 프레임워크
-httpx                   # pytest-asyncio용 HTTP 클라이언트
+python-multipart        
+python-dotenv          
+alembic                 
+pytest                  
+httpx                   
+mediapipe==0.10.14
+opencv-python==4.10.0.84
+numpy>=1.26
+joblib>=1.3
+pytorch-tabnet==4.1.0
+torch>=2.2.0
+scikit-learn>=1.3
+pandas>=2.0
+
+
+

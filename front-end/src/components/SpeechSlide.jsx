@@ -19,9 +19,10 @@ export default function SpeechSlide() {
 
                 {/* 검사 가이드 텍스트 */}
                 <div className="text-left text-3xl text-gray-800 ml-0 leading-relaxed">
-                    <p>1. 가이드라인 추가예정1</p>
-                    <p className="mt-4">2. 가이드라인 추가예정2</p>
-                    <p className="mt-4">3. 가이드라인 추가예정3</p>
+                    <p>1. 30초 가량 자기소개를 해주세요.</p>
+                    <p>&nbsp;&nbsp;&nbsp;(이름, 생년월일, 나이, 직업 등)</p>
+                    <p className="mt-4">2. 마이크에서 약간 거리를 두고</p>
+                    <p>&nbsp;&nbsp;&nbsp;자기소개를 진행해주세요.</p>
                 </div>
             </div>
 

@@ -1,11 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from sqlalchemy.orm import Session
 from app.db.session import get_db
-from app.schemas.user import UserCreate, UserLogin, TokenResponse, MessageResponse
-from app.crud.user import get_user_by_email, create_user, verify_password,get_user_by_id
-from app.core.security import create_access_token
+from app.schemas.user import UserCreate, UserLogin, MessageResponse
+from app.crud.user import get_user_by_email, create_user, verify_password, get_user_by_id
+from app.core.security import create_access_token, get_user_id_from_cookie
+from app.core.config import settings
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+# ⚠️ prefix 제거 (routers.py에서 "/auth"를 붙여서 include 함)
+router = APIRouter(tags=["auth"])
 
 @router.post("/signup", response_model=MessageResponse, status_code=status.HTTP_201_CREATED)
 def signup(user_in: UserCreate, db: Session = Depends(get_db)):
@@ -16,14 +18,36 @@ def signup(user_in: UserCreate, db: Session = Depends(get_db)):
     create_user(db, user_in)
     return {"message": "회원가입 성공"}
 
-@router.post("/login", response_model=TokenResponse)
-def login(user_in: UserLogin, db: Session = Depends(get_db)):
+@router.post("/login", response_model=MessageResponse)
+def login(user_in: UserLogin, response: Response, db: Session = Depends(get_db)):
     db_user = get_user_by_id(db, user_in.id)
     if not db_user or not verify_password(user_in.password, db_user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="이메일 또는 비밀번호가 올바르지 않습니다.",
+            detail="아이디 또는 비밀번호가 올바르지 않습니다.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
     token = create_access_token(subject=db_user.id)
-    return {"access_token": token}
+
+    # httpOnly 쿠키 심기 → 새로고침해도 유지
+    response.set_cookie(
+        key="access_token",
+        value=token,
+        httponly=True,
+        secure=False,              # 개발(HTTP)에서는 False, 운영(HTTPS)은 True
+        samesite="Lax",            # 운영에서 크로스오리진 필요 시 "None" + secure=True
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        path="/",
+    )
+    return {"message": "로그인 성공"}
+
+@router.get("/me", response_model=MessageResponse)
+def me(request: Request):
+    user_id = get_user_id_from_cookie(request)
+    return {"message": user_id}
+
+@router.post("/logout", response_model=MessageResponse)
+def logout(response: Response):
+    response.delete_cookie("access_token", path="/")
+    return {"message": "로그아웃 성공"}

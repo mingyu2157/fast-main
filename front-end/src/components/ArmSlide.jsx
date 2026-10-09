@@ -1,5 +1,7 @@
 // src/components/ArmSlide.jsx
+import { useNavigate } from "react-router-dom"
 export default function ArmSlide() {
+    const navigate = useNavigate();
     return (
         <div className="w-full h-full flex flex-col items-center justify-center text-center px-6">
             {/* 타이틀 */}
@@ -29,6 +31,7 @@ export default function ArmSlide() {
 
             {/* 검사 시작 버튼 */}
             <button
+                onClick={() => navigate("/measure/arm")}
                 className="bg-blue-600 text-white text-4xl font-normal font-sans px-7 py-4 rounded-full shadow-lg
                    hover:scale-110 hover:bg-blue-700 hover:font-semibold hover:shadow-xl transition-transform duration-300"
             >
