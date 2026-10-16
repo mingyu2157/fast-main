@@ -4,7 +4,8 @@ sqlalchemy
 pymysql
 cryptography==46.0.3
 passlib[bcrypt]
-pydantic==1.10.14
+bcrypt<5
+pydantic==1.10.26
 email-validator
 python-multipart        
 python-dotenv          
@@ -31,3 +32,4 @@ ffmpeg-python
 xgboost==3.0.2
 numba==0.62.1
 setuptools==80.9.0
+transformers==4.56.2

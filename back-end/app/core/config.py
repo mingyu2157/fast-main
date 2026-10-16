@@ -3,6 +3,11 @@
 from typing import Literal
 from pydantic import BaseSettings, Field
 
+from pathlib import Path
+
+BACKEND_DIR = Path(__file__).resolve().parents[2]   # back-end/
+PROJECT_ROOT = Path(__file__).resolve().parents[3]  # fast-main/
+
 # 모달리티 타입 (face | arm | speech)
 Modality = Literal["face", "arm", "speech"]
 
@@ -27,18 +32,20 @@ class Settings(BaseSettings):
     # 모달리티별 현재 사용 버전 (버저닝 운영 시 .env에서 v2 등으로 교체)
     FACE_MODEL_VERSION: str = Field("v1", env="FACE_MODEL_VERSION")
     ARM_MODEL_VERSION: str = Field("v1", env="ARM_MODEL_VERSION")
-    SPEECH_MODEL_VERSION: str = Field("v1", env="SPEECH_MODEL_VERSION")
+    SPEECH_MODEL_VERSION: str = Field("v2", env="SPEECH_MODEL_VERSION")
 
     # 모달리티별 임계치 (TabNet 확률 → 라벨 변환)
     FACE_THRESHOLD: float = Field(0.2278, env="FACE_THRESHOLD")
     ARM_THRESHOLD: float = Field(0.5, env="ARM_THRESHOLD")
-    SPEECH_THRESHOLD: float = Field(0.5, env="SPEECH_THRESHOLD")
+    SPEECH_THRESHOLD: float = Field(0.15, env="SPEECH_THRESHOLD")
+    SPEECH_W2V_DIR: str = Field("speechml/models/wav2vec2-base", env="SPEECH_W2V_DIR")
+
 
     # 개발 편의를 위한 CORS 기본값(프론트 로컬)
     FRONTEND_ORIGIN: str = Field("http://localhost:5173", env="FRONTEND_ORIGIN")
 
     class Config:
-        env_file = ".env"
+        env_file = BACKEND_DIR / ".env"
         case_sensitive = True
 
     # SQLAlchemy 연결 URL (pymysql)
@@ -61,8 +68,7 @@ def model_dir(modality: Modality) -> str:
         "arm": settings.ARM_MODEL_VERSION,
         "speech": settings.SPEECH_MODEL_VERSION,
     }[modality]
-    return f"{settings.MODEL_DIR_BASE}/{modality}/{ver}"
-
+    return str(BACKEND_DIR / settings.MODEL_DIR_BASE / modality / ver)
 
 def threshold(modality: Modality) -> float:
     """
@@ -74,6 +80,10 @@ def threshold(modality: Modality) -> float:
         "speech": settings.SPEECH_THRESHOLD,
     }[modality]
 
+def w2v_dir() -> str:
+    """
+    wav2vec2 가중치 디렉터리. 프로젝트 루트 기준"""
+    return str(PROJECT_ROOT / settings.SPEECH_W2V_DIR)
 
 # 싱글톤 설정 인스턴스
 settings = Settings()
