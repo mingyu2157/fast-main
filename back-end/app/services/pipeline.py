@@ -2,9 +2,10 @@ from typing import Dict, Tuple
 from app.core.config import Modality
 from app.services.features.face_features import extract_features_from_image_bytes as face_from_image
 from app.services.inference.tabnet_runner import predict_proba_and_label
-from app.services.features.arm_features import features_from_landmarks 
-from app.services.inference.arm_xgb_runner import predict_proba_and_label as arm_predict
-from app.services.arm_result import compose_arm_result
+# NOTE: arm_landmarks 경로의 의존성은 지연 import 한다.
+#   arm_features.features_from_landmarks 가 아직 구현되지 않아 모듈 상단에서
+#   import 하면 ImportError 로 앱 전체가 기동 불가가 된다(measure.py → pipeline.py).
+#   깨진 모듈이 다른 기능까지 막지 않도록 호출 시점으로 미룬다.
 
 def run_pipeline(modality: Modality, payload: bytes) -> Tuple[Dict[str, float], float, int]:
     if modality == "face":  
@@ -15,6 +16,11 @@ def run_pipeline(modality: Modality, payload: bytes) -> Tuple[Dict[str, float], 
         # 필요하면 /api/v1/arm/predict_landmarks 로 전환하세요.
         raise RuntimeError("Use 'arm_landmarks' modality (A-path) instead of legacy image-based 'arm'.")
     elif modality == "arm_landmarks":
+        import numpy as np   # 상단에 없어서 NameError 가 나던 것도 함께 보완
+        from app.services.features.arm_features import features_from_landmarks
+        from app.services.inference.arm_xgb_runner import predict_proba_and_label as arm_predict
+        from app.services.arm_result import compose_arm_result
+
         # payload 예시:
         # {"frame_width":1280,"frame_height":720,"wasMirrored":true,
         #  "start":[{"label":"Left","points":[{x,y}*21]},...],

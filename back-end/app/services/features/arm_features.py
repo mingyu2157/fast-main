@@ -90,3 +90,18 @@ def extract_features_from_two_images(start_bytes: bytes, end_bytes: bytes) -> Di
     for k in FEATURE_COLS:
         feats.setdefault(k, 0.0)
     return feats
+
+
+# --- 호출부가 요구하는 표시용 헬퍼 (최소 복구) --------------------------------
+# arm_landmark.py 가 import 하는데 정의가 없어 앱 전체가 기동 불가였다.
+# 모델 추론과 무관한 '응답 표시용' 함수라 FEATURE_COLS 순서만 따르면 된다.
+# Arm 담당자가 의도한 포맷이 따로 있으면 교체해도 무방하다.
+
+def features_vector(feats: Dict[str, float]) -> list:
+    """feats dict → FEATURE_COLS 순서의 값 리스트 (모델 입력 벡터와 같은 순서)."""
+    return [float(feats.get(k, 0.0)) for k in FEATURE_COLS]
+
+
+def format_features(feats: Dict[str, float]) -> str:
+    """사람이 읽기 좋은 한 줄 문자열. 서버 로그와 응답의 features_pretty 에 쓰인다."""
+    return ", ".join(f"{k}={float(feats.get(k, 0.0)):.4f}" for k in FEATURE_COLS)

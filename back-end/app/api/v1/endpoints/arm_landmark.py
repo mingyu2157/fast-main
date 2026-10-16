@@ -8,7 +8,6 @@ import math
 from app.services.inference.arm_xgb_runner import predict_proba_and_label
 from app.services.features.arm_features import (
     FEATURE_COLS,
-    ordered_feature_items,  # 옵션: 필요 없으면 import 제거
     features_vector,
     format_features,
 )
