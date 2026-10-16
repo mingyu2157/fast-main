@@ -22,3 +22,12 @@ back-end/app/static/
 .claude/settings.local.json
 torgo_data/
 data.csv
+speechml/outputs/
+speechml/models/
+cookies.txt
+.env
+back-end/.env
+# 비밀정보 — .env.example 을 참고해 각자 생성
+
+# pip dry-run 산출물
+report.json
