@@ -16,8 +16,12 @@ dist/
 .DS_Store
 Thumbs.db
 
-back-end/app/assets/models/
-back-end/app/static/
+# 모델 아티팩트 — speech 하위만 제외한다.
+# 과거에 assets/models/ 전체를 제외해 팀원의 Face(TabNet)·Arm(XGBoost) 모델까지
+# 추적에서 빠지는 사고가 있었다. 범위를 넓게 잡으면 남의 아티팩트까지 날아간다.
+back-end/app/assets/models/speech/
+# 생성되는 파형 PNG 만 제외. static/index.html 은 추적 유지.
+back-end/app/static/speech/
 # Claude Code (로컬 설정)
 .claude/settings.local.json
 torgo_data/

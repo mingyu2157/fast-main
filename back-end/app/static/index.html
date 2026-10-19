@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>ARM Module 웹 테스트</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
+    body { margin: 0; padding: 24px; background:#0b1020; color:#e9eef9; }
+    h1 { margin:0 0 16px; font-size:20px; }
+    .row { display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start; }
+    .col { flex:1 1 360px; min-width:320px; }
+    .card { background:#121833; border:1px solid #2a3566; border-radius:14px; padding:16px; box-shadow:0 6px 24px rgba(0,0,0,.25); }
+    .video-wrap { position:relative; width:100%; max-width:640px; aspect-ratio:16/9; margin:auto; border-radius:12px; overflow:hidden; }
+    video { width:100%; height:100%; object-fit:cover; transform:scaleX(-1); } /* 미러링 */
+    #guide { position:absolute; bottom:8px; left:50%; transform:translateX(-50%); width:160px; opacity:.8; pointer-events:none; display:none; }
+    .btns { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+    button { padding:10px 14px; border-radius:10px; border:1px solid #4154d8; background:#2b3bb3; color:#fff; cursor:pointer; }
+    button.sec { background:#26304a; border-color:#3a486d; }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    .preview { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px; }
+    .preview figure { margin:0; }
+    .preview img { width:100%; border-radius:10px; border:1px solid #2a3566; background:#0e1430; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size:13px; white-space:pre-wrap; word-break:break-word; }
+    .link a { color:#8ab4ff; text-decoration:none; }
+    .link a:hover { text-decoration:underline; }
+  </style>
+</head>
+<body>
+  <h1>ARM Module 웹 테스트 (2.5s &rarr; 10.5s 캡처 → <code>/predict/</code>)</h1>
+
+  <div class="row">
+    <section class="col card">
+      <div class="video-wrap">
+        <video id="video" autoplay playsinline muted></video>
+        <img id="guide" src="guide.png" alt="guide" onload="this.style.display='block'" onerror="this.style.display='none'">
+      </div>
+      <div class="btns">
+        <button id="btnStart">측정 시작 (2.5s → 10.5s)</button>
+        <button id="btnSend" class="sec" disabled>서버로 전송</button>
+        <button id="btnReset" class="sec">리셋</button>
+      </div>
+      <div id="log" class="mono" style="margin-top:10px; color:#a9b4d4;"></div>
+      <div class="preview">
+        <figure>
+          <figcaption>2.5s 프레임</figcaption>
+          <img id="img025" alt="2.5s frame preview">
+        </figure>
+        <figure>
+          <figcaption>10.5s 프레임</figcaption>
+          <img id="img105" alt="10.5s frame preview">
+        </figure>
+      </div>
+    </section>
+
+    <section class="col card">
+      <h2 style="margin:0 0 8px; font-size:16px;">응답</h2>
+      <pre id="result" class="mono">{ 아직 없음 }</pre>
+      <div id="links" class="link"></div>
+    </section>
+  </div>
+
+  <canvas id="hiddenCanvas" style="display:none;"></canvas>
+
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('hiddenCanvas');
+    const img025 = document.getElementById('img025');
+    const img105 = document.getElementById('img105');
+    const btnStart = document.getElementById('btnStart');
+    const btnSend = document.getElementById('btnSend');
+    const btnReset = document.getElementById('btnReset');
+    const logEl = document.getElementById('log');
+    const resultEl = document.getElementById('result');
+    const linksEl = document.getElementById('links');
+
+    let blob025 = null, blob105 = null;
+
+    function log(msg) {
+      const t = new Date().toLocaleTimeString();
+      logEl.textContent += `[${t}] ${msg}\n`;
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    async function initCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+        video.srcObject = stream;
+        log('카메라 시작');
+      } catch (e) {
+        log('카메라 권한 거부 또는 장치 없음: ' + e);
+        alert('카메라를 사용할 수 없습니다. 파일 업로드 방식으로 테스트하려면 별도 페이지가 필요합니다.');
+      }
+    }
+
+    function captureFrame() {
+      return new Promise((resolve) => {
+        const w = video.videoWidth || 1280;
+        const h = video.videoHeight || 720;
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        // 미러링(좌우 반전)
+        ctx.save();
+        ctx.translate(w, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, 0, 0, w, h);
+        ctx.restore();
+        canvas.toBlob((blob) => resolve(blob), 'image/png');
+      });
+    }
+
+    async function runMeasurement() {
+      btnStart.disabled = true;
+      btnSend.disabled = true;
+      log('2.5초 대기…');
+      await new Promise(r => setTimeout(r, 2500));
+      blob025 = await captureFrame();
+      img025.src = URL.createObjectURL(blob025);
+      log('2.5s 프레임 캡처 완료');
+
+      log('10.5초(추가 8초) 대기…');
+      await new Promise(r => setTimeout(r, 8000));
+      blob105 = await captureFrame();
+      img105.src = URL.createObjectURL(blob105);
+      log('10.5s 프레임 캡처 완료');
+
+      btnSend.disabled = false;
+      log('이제 [서버로 전송]을 누를 수 있어요.');
+    }
+
+    async function sendToServer() {
+      if (!blob025 || !blob105) {
+        alert('먼저 측정을 실행해 캡처를 완료해 주세요.');
+        return;
+      }
+      const fd = new FormData();
+      fd.append('start_file', blob025, 't025.png');
+      fd.append('end_file', blob105, 't105.png');
+
+      resultEl.textContent = '{ 전송 중… }';
+      linksEl.innerHTML = '';
+      try {
+        const res = await fetch('/predict/', { method: 'POST', body: fd });
+        if (!res.ok) {
+          const txt = await res.text();
+          throw new Error(`HTTP ${res.status} - ${txt}`);
+        }
+        const json = await res.json();
+        resultEl.textContent = JSON.stringify(json, null, 2);
+        log('서버 응답 수신');
+
+        // 응답에 이미지 URL이 있으면 링크 표시
+        const { image_start_url, image_end_url } = json;
+        let html = '';
+        if (image_start_url) html += `▶ <a href="${image_start_url}" target="_blank" rel="noopener">2.5s 이미지 열기</a><br/>`;
+        if (image_end_url)   html += `▶ <a href="${image_end_url}" target="_blank" rel="noopener">10.5s 이미지 열기</a>`;
+        linksEl.innerHTML = html;
+      } catch (err) {
+        resultEl.textContent = String(err);
+        log('전송 실패: ' + err);
+      }
+    }
+
+    function resetAll() {
+      blob025 = null; blob105 = null;
+      img025.removeAttribute('src');
+      img105.removeAttribute('src');
+      resultEl.textContent = '{ 아직 없음 }';
+      linksEl.innerHTML = '';
+      btnStart.disabled = false;
+      btnSend.disabled = true;
+      log('리셋 완료');
+    }
+
+    btnStart.addEventListener('click', runMeasurement);
+    btnSend.addEventListener('click', sendToServer);
+    btnReset.addEventListener('click', resetAll);
+
+    initCamera();
+  </script>
+</body>
+</html>
