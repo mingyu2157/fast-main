@@ -1,6 +1,7 @@
 # back-end/app/main.py
 from __future__ import annotations
 
+import logging
 import os
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -8,11 +9,28 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.routers import api_router
+from app.core.config import settings
 from app.db.base import Base
 
 
-# .env 로드 (SPEECH_VAD_MODE, SPEECH_DTW_SCALE_MODE 등 환경변수 사용 가능)
+# .env 로드
 load_dotenv()
+
+# --- 로깅 설정 -------------------------------------------------------------
+# uvicorn 은 uvicorn / uvicorn.access 로거만 구성하고 root 는 건드리지 않는다.
+# root 기본 레벨이 WARNING 이라, 설정하지 않으면 애플리케이션의 logger.info() 가
+# 전부 버려진다(모델 로드 정보, threshold 출처 등이 안 보임).
+# 운영에서 파드 로그가 1차 디버깅 수단이므로 여기서 root 를 명시적으로 구성한다.
+logging.basicConfig(
+    level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO),
+    format="%(asctime)s %(levelname)-8s %(name)s | %(message)s",
+    datefmt="%H:%M:%S",
+)
+logger = logging.getLogger(__name__)
+logger.info(
+    "FAST API 기동 | speech 모델 %s | LOG_LEVEL=%s",
+    settings.SPEECH_MODEL_VERSION, settings.LOG_LEVEL,
+)
 
 app = FastAPI(
     title="FAST API",

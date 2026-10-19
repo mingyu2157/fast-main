@@ -23,8 +23,25 @@
 - [x] 6. 모델링 — wav2vec2-base freeze + 임베딩 + logreg, 화자 단위 5-fold. 기준선 AUC 0.710 / Recall 0.641
 - [x] 7. 학습 & 튜닝 — layer 8 + mean + **threshold 0.15** 확정. AUC 0.818 / Recall 0.777 / FN 221
 - [x] 8. baseline 비교 평가 — **AUC 0.818(새) vs 0.562(RF)**. 단 DTW 프롬프트 불일치 한계 있음(아래 메모)
-- [ ] 9. 서비스 적용 — **모델 경로·버전을 환경변수로 주입 가능한 구조로** (C의 MLflow 대비)
-- [ ] 10. 병합 준비 체크리스트 → `main` 병합
+- [x] 9. 서비스 적용 — 검증 ①~⑦ 통과. webm 경로 확인 + **발화 게이트 추가**(무음 오탐 발견·대응)
+- [~] 10. 병합 준비 — 로컬 전체 동작 ✅ / 보안 정비 ✅ / **커밋·병합 남음**
+  - compose 전체 기동 검증은 **B-1(Dockerfile 작성) 이후로 이관** (백엔드 이미지가 없어 현재 MySQL만 뜸)
+  - 팀 공유 항목은 불필요 — 현재 사용자 단독 작업. 문서 기록으로 대체
+- [x] 📄 `docs/speech-model-rebuild.md` (225줄) — 1~9단계 + 보안 대응 + 게이트 실측 한계
+
+### 메모 — 보안 대응 (2026-10-19)
+- 저장소가 **public + 포크 2개**. `back-end/.env`(SECRET_KEY, DB 비밀번호)와 `docker-compose.yml`(평문 MySQL 비밀번호) 노출.
+- 포크에는 히스토리 재작성이 미치지 않으므로 **"지우기"가 아니라 "값 무효화"를 우선**했다.
+- 조치: 값 전면 교체(SECRET_KEY 64자 / DB / MySQL root) → `.env` 추적 해제 + `.env.example` → compose를 `${...}` 참조로 → 루트에 `.env` 심볼릭 링크.
+- ⚠️ 심볼릭 링크(`.env -> back-end/.env`)는 gitignore 대상이라 **새로 클론하면 직접 만들어야 한다.** 재현 절차를 README에 적을 것.
+- 교훈: `.env`만 바꾸고 compose를 놓쳐 DB 연결이 끊겼다. **값을 두 곳에 두면 반드시 어긋난다** → B-8(시크릿 관리), C-7(Sealed Secrets)로 이어짐.
+
+### 메모 — 발화 게이트 실측 (2026-10-19)
+- 게이트 전 비발화 4종 직접 통과: 백색잡음 0.00013 Normal / 60Hz험 0.0000082 Normal / 440Hz순음 0.00117 Normal / 핑크잡음 0.99999 **Abnormal**
+  → **4개 중 3개가 Normal.** "무음=Abnormal"은 우연이었음이 입증됨. 게이트로 의도적 판정이 필요한 근거.
+- 게이트 후: 비발화 4종 전부 `no_speech_detected` 차단, 실제 발화 통과 ✅
+- ⚠️ **카페 녹음 13.62초가 게이트를 통과해 risk 0.9999 Abnormal로 오탐.** 사람 목소리가 섞여 배음 구조가 있기 때문.
+  → "조용한 환경" 사용 전제가 생김. 해결에는 화자 분리/근접 발화 검출 필요 — 후속 과제.
 
 ### 메모 — baseline 전략 (2026-09-16 확정)
 - ❌ 기존 모델 아티팩트(`back-end/app/assets/models/speech/`) **확보 불가**. 옛 모델을 그대로 돌리는 비교는 포기.
@@ -41,6 +58,46 @@
 - ⚠️ 한계(포트폴리오에 명시할 것): **영어** 발화, 병인이 **뇌성마비·ALS**(뇌졸중 아님).
   한국어 후보(AI Hub 71434)는 **안심존 전용**이라 반입·반출 불확실 → 파이프라인 완주 가능성을 우선해 TORGO 선택.
 - AI Hub 신청은 결과를 기다리지 않는다. 승인되면 "한국어 검증 확장" 카드로만 사용.
+
+### 메모 — 9단계 서비스 연동 (2026-10-18)
+- `speech.py` **778 → 275줄**. VAD/10초 크롭/타일링 제거(학습 입력과 일치), DTW 가드 7겹(약 250줄) 삭제,
+  죽은 코드 `convert_webm_to_wav*` 삭제. `load_audio_16k`는 디코딩 용도로 유지.
+- 신규: `embedder.py`(wav2vec2 → 768d), `predictor.py`(clf.joblib → 확률/판정). `meta.json`이 서빙 계약.
+- 설정 주입: `app/core/config.py`의 `model_dir("speech")` / `w2v_dir()` / `SPEECH_THRESHOLD`.
+  `BACKEND_DIR`·`PROJECT_ROOT`를 `__file__` 기준 절대경로로 고정(= CWD 의존 제거). `env_file`도 동일 처리.
+- 무음/짧은 입력은 확률 조작(옛 SILENCE_VETO) 대신 **400 반환**. RMS 하한 0.001은 TORGO `rms_mean` 최솟값 0.00089 근거.
+- 로깅: `main.py`에 root 로거 구성(`LOG_LEVEL` 환경변수). uvicorn은 자기 로거만 설정해서 app의 `logger.info`가 전부 버려지고 있었음.
+
+#### 검증 결과
+| | 항목 | 결과 |
+|---|---|---|
+| ① | 임베딩 일치 | 캐시 vs 서비스 **최대차 0.00e+00** (비트 단위) |
+| ② | 단일 파일 추론 | 기준값 5개 일치 |
+| ③ | 엔드포인트 | risk 1.0000 / Abnormal / thr 0.15 / DB 저장(model_tag=v2, DTW 컬럼 NULL) |
+| ④ | 대조군 | 정상 0.0590 → Normal / 구음장애 1.0000 → Abnormal |
+| ⑤ | 환경변수 주입 | `SPEECH_THRESHOLD=0.01` → risk 그대로, **판정만 뒤집힘**. `v99` → `model_dir_exists:false` |
+| ⑥ | 지연·메모리 | 첫 요청 **2.10s**(모델 로드), 요청당 **0.47s**, 워커 **808MB** |
+| ⑦ | 프론트(webm) | 디코딩·예측·저장 정상. **무음 녹음이 0.97 Abnormal 로 오탐되는 것 발견** |
+
+#### ⑦에서 발견한 오동작과 대응
+- 아무 말 없이 10초 녹음 → `risk 0.9686 / Abnormal`. 모델이 판단한 게 아니라 잡음 임베딩이 중증 구음장애 영역에 떨어진 결과.
+- 원인: **모델에 "발화 아님" 클래스가 없다.** 학습 분포 밖 입력이 억지로 한쪽에 배정된다.
+- RMS로는 불가: 무음 녹음 rms 0.0252 = 실제 발화의 상위 9% 지점.
+- 대응: **스펙트럼 평탄도 양방향 게이트** (`FLATNESS_MIN=0.0002`, `FLATNESS_MAX=0.15`)
+  - 근거(TORGO 249개): 실제 발화 0.00067~0.05817 / 백색잡음 0.5615↑ / 60Hz험·순음 0.0000↓
+  - 걸리면 **모델을 돌리지 않고** `risk: null`, `decision: Abnormal`, `reason: no_speech_detected` 반환
+  - 판정을 Abnormal 로 둔 건 "말을 못 하는 것 자체가 경고 신호"라는 제품 판단(사용자 결정)
+  - 옛 `SILENCE_VETO`처럼 확률을 조작하지 않는다 — 근거 없는 숫자 대신 null
+- ⚠️ 한계: 사람 목소리 섞인 소음·타인 말소리·음악은 통과. 근본 해결은 OOD 탐지 또는 "발화 아님" 클래스.
+
+#### B단계로 넘길 메모
+- **메모리는 워커당 808MB** — 모델이 프로세스 간 공유되지 않는다. 워커 N개면 N×808MB. `resources.limits.memory` 근거.
+- readiness probe `initialDelaySeconds`는 모델 로드 2.1s 고려. 기동 시 로드(`lifespan`)로 바꿀지 B에서 결정.
+- **Dockerfile에 `ffmpeg` 설치 필수** — webm 디코딩 경로. 로컬에선 `~/bin/ffmpeg` 수동 설치로 해결했음.
+- 모델 주입 방식 미결: wav2vec2 380MB가 `speechml/models/`(gitignore, back-end 밖)에 있음. 복사/빌드시 다운로드/볼륨/MLflow 중 택1.
+- 의존성 충돌 이력(전부 "레거시 핀 × 신규 런타임"): setuptools **낮춤**(80.9.0), pydantic **올림**(1.10.26), bcrypt **낮춤**(<5), transformers 상한(4.56.2).
+- `.env`가 git에 추적되고 있었음 → 추적 해제 + `.env.example` 추가. **SECRET_KEY/DB 비밀번호는 히스토리에 남아 있어 교체 필요(팀 결정)**.
+- Arm 모듈: `pipeline.py` 지연 import로 기동 불가 해소. **`extract_features_from_two_images`는 여전히 동작 불가**(return 들여쓰기 + `_angle_xy`/`_angle_diff` 미정의) — 담당자 전달 필요.
 
 ### 메모 — 8단계 baseline 비교 (2026-10-13)
 - 동일 조건: 1,991개 / 화자 단위 5-fold / seed 42 / OOF 풀링. `speechml/baseline_rf.py`, `speechml/compare.py`

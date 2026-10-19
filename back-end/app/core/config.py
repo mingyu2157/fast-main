@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     SPEECH_W2V_DIR: str = Field("speechml/models/wav2vec2-base", env="SPEECH_W2V_DIR")
 
 
+    # 애플리케이션 로그 레벨. uvicorn 은 자기 로거만 설정하므로
+    # root 로거가 WARNING 으로 남아 app 의 logger.info() 가 전부 버려진다.
+    # main.py 에서 이 값으로 root 를 설정한다. 운영에서는 WARNING/ERROR 로 올린다.
+    LOG_LEVEL: str = Field("INFO", env="LOG_LEVEL")
+
     # 개발 편의를 위한 CORS 기본값(프론트 로컬)
     FRONTEND_ORIGIN: str = Field("http://localhost:5173", env="FRONTEND_ORIGIN")
 

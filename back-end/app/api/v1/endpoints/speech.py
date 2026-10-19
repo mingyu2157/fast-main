@@ -42,6 +42,26 @@ W2V_DIR = w2v_dir()
 # 그보다 조용하면 학습 분포 밖이고 발화로 볼 수 없다. (1% 분위는 0.0062)
 MIN_RMS = 0.001
 
+# 발화 여부 게이트 — 스펙트럼 평탄도(median)
+#
+# 이 모델에는 "발화가 아님" 클래스가 없다. 구음장애/정상 둘 중 하나로만 학습됐으므로
+# 학습 분포 밖의 입력(잡음·무음·험)은 억지로 한쪽에 배정되고, 실제로 무음 녹음이
+# 0.97로 Abnormal 판정된 사례가 있었다. 모델이 판단한 게 아니라 임베딩이 우연히
+# 중증 구음장애 영역에 떨어진 결과였다.
+#
+# 근거 (TORGO 실제 발화 249개 샘플 측정):
+#   실제 발화     0.00067 ~ 0.05817   (1% 0.00133 / 50% 0.01402 / 99% 0.04407)
+#   백색잡음      0.5615   ↑          에어컨형 저역잡음  0.5622  ↑
+#   완전 무음     1.0000   ↑          60Hz 험/순음/핑크  0.0000  ↓
+# 사람 음성은 배음 구조가 있어 스펙트럼이 뾰족하고(평탄도 중간), 광대역 잡음은
+# 고르게 퍼져(높음), 순음은 한 곳에 몰린다(낮음). 양쪽을 모두 막는다.
+FLATNESS_MAX = 0.15     # 실제 발화 최댓값 0.058 의 약 2.6배 여유
+FLATNESS_MIN = 0.0002   # 실제 발화 최솟값 0.00067 의 약 1/3
+
+# ⚠️ 한계: 이 게이트는 "발화처럼 들리지 않는 입력"만 막는다.
+# 사람 목소리와 섞인 잡음, 타인의 말소리는 걸러내지 못한다. 근본 해결은
+# 학습 단계에서 "발화 아님" 클래스를 두거나 OOD 탐지를 붙여야 한다.
+
 
 # JSON 직렬화/DB 저장을 위한 안전 변환 (numpy → python 기본형)
 def _to_py(obj):
@@ -76,6 +96,84 @@ def get_predictor():
         # 넘기지 않으려면 settings.SPEECH_THRESHOLD 를 Optional 로 바꾸고 None 을 전달한다.
         _predictor = SpeechPredictor(Path(MODEL_DIR), threshold=settings.SPEECH_THRESHOLD)
     return _predictor
+
+
+def _median_flatness(audio: np.ndarray) -> float:
+    """스펙트럼 평탄도의 중앙값. 발화 여부 판별에 쓴다."""
+    try:
+        f = librosa.feature.spectral_flatness(y=audio)[0]
+        return float(np.nanmedian(f)) if len(f) else 1.0
+    except Exception:
+        return 1.0   # 계산 실패 시 '발화 아님' 쪽으로 보수적 처리
+
+
+def _save_speech_row(db, user_id, file, data: dict) -> None:
+    """DB 저장. 실패해도 응답은 돌려준다."""
+    try:
+        crud_speech.create(db, {
+            "user_id": user_id,
+            "wav_filename": getattr(file, "filename", None),
+            "model_tag": os.path.basename(MODEL_DIR),
+            "dtw_slice1": None, "dtw_slice2": None, "dtw_slice3": None,
+            "dtw_slice4": None, "dtw_slice5": None, "dtw_slope": None,
+            "x_cover": None, "features_json": None,
+            "dtw_graph_url": None, "feature_graph_url": None,
+            **data,
+        })
+    except Exception as e:
+        logger.warning("[speech] DB 저장 실패: %s", e)
+
+
+def _no_speech_response(db, user_id, file, duration, rms, flatness, sr, audio):
+    """발화가 감지되지 않은 경우의 응답.
+
+    모델을 돌리지 않는다. 학습 분포 밖의 입력이라 확률에 의미가 없기 때문이다.
+    risk 를 null 로 두는 것이 '0.97 이라는 근거 없는 숫자'를 보여주는 것보다 정직하다.
+    판정은 Abnormal 로 둔다 — 말을 하지 못하는 상태 자체가 경고 신호이므로.
+    """
+    logger.warning(
+        "[speech] 발화 미감지 | flatness=%.5f (허용 %.4f~%.2f) rms=%.4f dur=%.2fs file=%s",
+        flatness, FLATNESS_MIN, FLATNESS_MAX, rms, duration, getattr(file, "filename", None),
+    )
+    result = {
+        "pred": 1,
+        "risk": None,                 # 모델을 돌리지 않았다
+        "threshold": get_predictor().threshold,
+        "decision": "Abnormal",
+        "reason": "no_speech_detected",
+        "personalized_text": (
+            "녹음에서 사람의 말소리가 감지되지 않았습니다.\n\n"
+            "말을 하려 해도 소리가 나오지 않는 상태라면 뇌졸중의 경고 신호일 수 있으니 "
+            "즉시 주변에 도움을 요청하세요.\n"
+            "마이크가 꺼져 있거나 주변 소음만 녹음됐을 수도 있습니다. "
+            "마이크 상태를 확인한 뒤 조용한 곳에서 다시 시도해 주세요."
+        ),
+        "debug_info": {
+            "model_version": settings.SPEECH_MODEL_VERSION,
+            "audio_duration": duration,
+            "rms": rms,
+            "flatness": flatness,
+            "flatness_range": [FLATNESS_MIN, FLATNESS_MAX],
+            "gate": "no_speech_detected",
+            "filename": getattr(file, "filename", None),
+        },
+    }
+    try:
+        g = build_waveform_png(y=audio, meta={"sr": sr},
+                               extras={"audio_length": len(audio), "audio_duration": duration})
+        result["graph"] = f"data:image/png;base64,{g}" if g else None
+    except Exception:
+        result["graph"] = None
+
+    _save_speech_row(db, user_id, file, {
+        "risk_score": None,
+        "threshold": result["threshold"],
+        "result_text": "Abnormal",
+        "voiced_sec": duration,
+        "debug_json": _to_py(result["debug_info"]),
+        "waveform_graph_url": None,
+    })
+    return JSONResponse(_to_py(result))
 
 
 def check_ffmpeg() -> bool:
@@ -167,6 +265,18 @@ async def predict_speech(
         if rms < MIN_RMS:
             return JSONResponse(status_code=400, content={
                 "error": "소리가 거의 녹음되지 않았습니다. 마이크를 확인하고 다시 시도해 주세요."})
+
+        # 발화 여부 게이트.
+        # 거부(400)가 아니라 "발화 없음"을 근거로 한 Abnormal 을 반환한다.
+        # 뇌졸중으로 말을 하지 못하는 상태라면 그 자체가 경고 신호이기 때문이다.
+        # 다만 모델 확률을 조작하지 않는다 — risk 는 null 로 두고 판정 근거를 명시한다.
+        # (옛 SILENCE_VETO 는 확률을 0.65 로 끌어올려 모델 출력을 왜곡했다.)
+        flatness = _median_flatness(y_16k)
+        if flatness > FLATNESS_MAX or flatness < FLATNESS_MIN:
+            return _no_speech_response(
+                db=db, user_id=user_id, file=file,
+                duration=duration, rms=rms, flatness=flatness, sr=sr, audio=y_16k,
+            )
 
         # 4) 임베딩 → 예측
         vec = get_embedder().embed(y_16k)
