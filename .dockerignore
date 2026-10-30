@@ -1,0 +1,38 @@
+# ---버전관리 / 에디터
+.git
+.gitignore
+.gitattributes
+.idea
+.vscode
+
+# --- 파이썬
+.venv
+___pycache__
+**/__pycache__
+*.pyc
+.pytest_cache
+.mypy_cache
+
+# 학습 데이터
+torgo_data/
+data.csv
+
+# 학습 전용 코드
+speechml/outputs/
+speechml/*.py
+report.json
+
+# 노드 / 프론트 빌드 산출물
+node_modules/
+**/node_modules/
+front-end/dist
+
+# 비밀번호
+.env
+back-end/.env
+cookies.txt
+
+# 문서
+docs/
+README*.md
+.claude/
